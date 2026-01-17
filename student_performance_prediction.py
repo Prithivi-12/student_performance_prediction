@@ -1,420 +1,351 @@
-# 1. Import Required Libraries
-import numpy as np
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, confusion_matrix
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+import warnings
+warnings.filterwarnings('ignore')
 
-# Set visualization style
-sns.set_style("whitegrid")
+df = pd.read_csv('StudentsPerformance.csv')
+print(df.head())
+print(df.info())
+print(df.describe())
+print("="*60)
+print("MISSING VALUES CHECK")
+print("="*60)
+print(df.isnull().sum())
 
-# 2. Load Dataset
-# Load dataset
-student_dataset = pd.read_csv("dataset.csv")
-
-# Display first few rows
-print("Dataset loaded successfully!")
-print("\nFirst 5 rows:")
-print(student_dataset.head())
-print(f"\nDataset shape: {student_dataset.shape}")
-
-# 3. Exploratory Data Analysis (EDA)
-
+# Check for duplicates
 print("\n" + "="*60)
-print("EXPLORATORY DATA ANALYSIS")
+print("DUPLICATE CHECK")
+print("="*60)
+duplicates = df.duplicated().sum()
+print(f"Duplicates found: {duplicates}")
+if duplicates > 0:
+    df = df.drop_duplicates()
+    print(f"✓ Removed {duplicates} duplicate rows")
+
+# Feature Engineering - Create average score column
+df['average_score'] = (df['math score'] + df['reading score'] + df['writing score']) / 3
+print("\n✓ Created 'average_score' feature")
+
+# Store original data before encoding
+df_original = df.copy()
+print("✓ Saved original data as 'df_original'")
+
+# Create encoded dataframe
+df_encoded = df.copy()
+print("✓ Created 'df_encoded' for processing")
+
+# Encode categorical variables
+print("\n" + "="*60)
+print("ENCODING CATEGORICAL VARIABLES")
 print("="*60)
 
-# 3.1 Target Distribution Visualization
-plt.figure(figsize=(15, 5))
+label_encoders = {}
+categorical_cols = ['gender', 'race/ethnicity', 'parental level of education', 
+                    'lunch', 'test preparation course']
 
-# Histogram of marks
-plt.subplot(1, 3, 1)
-plt.hist(student_dataset['marks'], bins=30, color='skyblue', edgecolor='black', alpha=0.7)
-plt.xlabel('Marks')
-plt.ylabel('Frequency')
-plt.title('Distribution of Marks', fontweight='bold')
-plt.grid(axis='y', alpha=0.3)
-
-# Boxplot of marks
-plt.subplot(1, 3, 2)
-plt.boxplot(student_dataset['marks'], vert=True, patch_artist=True,
-            boxprops=dict(facecolor='lightgreen', alpha=0.7))
-plt.ylabel('Marks')
-plt.title('Boxplot of Marks', fontweight='bold')
-plt.grid(axis='y', alpha=0.3)
-
-# Pass/Fail distribution
-plt.subplot(1, 3, 3)
-pass_fail_counts = student_dataset['pass_fail'].value_counts().sort_index()
-plt.bar(['Fail', 'Pass'], pass_fail_counts.values, color=['#ff6b6b', '#4ecdc4'], 
-        edgecolor='black', alpha=0.7)
-plt.xlabel('Pass/Fail')
-plt.ylabel('Count')
-plt.title('Pass/Fail Distribution', fontweight='bold')
-plt.grid(axis='y', alpha=0.3)
-
-plt.tight_layout()
-plt.savefig('01_target_distribution.png', dpi=300, bbox_inches='tight')
-plt.close()
-print("\n✓ Saved: 01_target_distribution.png")
-
-# 3.2 Correlation Heatmap
-plt.figure(figsize=(10, 8))
-correlation = student_dataset.corr()
-sns.heatmap(correlation, annot=True, fmt='.2f', cmap='coolwarm', 
-            center=0, square=True, linewidths=1, cbar_kws={"shrink": 0.8})
-plt.title('Feature Correlation Heatmap', fontsize=14, fontweight='bold', pad=20)
-plt.tight_layout()
-plt.savefig('02_correlation_heatmap.png', dpi=300, bbox_inches='tight')
-plt.close()
-print("✓ Saved: 02_correlation_heatmap.png")
-
-# Print top correlations with marks
-print("\nTop correlations with marks:")
-marks_corr = correlation['marks'].sort_values(ascending=False)
-for feature, corr_value in marks_corr.items():
-    if feature != 'marks':
-        print(f"  {feature}: {corr_value:.4f}")
-
-# 3.3 Key Feature Scatter Plots
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-
-# Study Hours vs Marks
-axes[0, 0].scatter(student_dataset['study_hours'], student_dataset['marks'], 
-                   alpha=0.5, color='#3498db', s=30, edgecolor='black', linewidth=0.3)
-axes[0, 0].set_xlabel('Study Hours')
-axes[0, 0].set_ylabel('Marks')
-axes[0, 0].set_title('Study Hours vs Marks', fontweight='bold')
-axes[0, 0].grid(True, alpha=0.3)
-
-# Attendance vs Marks
-axes[0, 1].scatter(student_dataset['attendance'], student_dataset['marks'], 
-                   alpha=0.5, color='#2ecc71', s=30, edgecolor='black', linewidth=0.3)
-axes[0, 1].set_xlabel('Attendance (%)')
-axes[0, 1].set_ylabel('Marks')
-axes[0, 1].set_title('Attendance vs Marks', fontweight='bold')
-axes[0, 1].grid(True, alpha=0.3)
-
-# Previous Scores vs Marks
-axes[1, 0].scatter(student_dataset['previous_scores'], student_dataset['marks'], 
-                   alpha=0.5, color='#e74c3c', s=30, edgecolor='black', linewidth=0.3)
-axes[1, 0].set_xlabel('Previous Scores')
-axes[1, 0].set_ylabel('Marks')
-axes[1, 0].set_title('Previous Scores vs Marks', fontweight='bold')
-axes[1, 0].grid(True, alpha=0.3)
-
-# Sleep Hours vs Marks
-axes[1, 1].scatter(student_dataset['sleep_hours'], student_dataset['marks'], 
-                   alpha=0.5, color='#9b59b6', s=30, edgecolor='black', linewidth=0.3)
-axes[1, 1].set_xlabel('Sleep Hours')
-axes[1, 1].set_ylabel('Marks')
-axes[1, 1].set_title('Sleep Hours vs Marks', fontweight='bold')
-axes[1, 1].grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.savefig('03_scatter_plots.png', dpi=300, bbox_inches='tight')
-plt.close()
-print("✓ Saved: 03_scatter_plots.png")
-
-# 3.4 Categorical Features Analysis
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-
-# Extracurricular vs Marks
-sns.boxplot(x='extracurricular', y='marks', data=student_dataset, 
-            ax=axes[0, 0], palette='Set2')
-axes[0, 0].set_title('Extracurricular Activities vs Marks', fontweight='bold')
-axes[0, 0].grid(axis='y', alpha=0.3)
-
-# Family Support vs Marks
-sns.boxplot(x='family_support', y='marks', data=student_dataset, 
-            ax=axes[0, 1], palette='Set3')
-axes[0, 1].set_title('Family Support vs Marks', fontweight='bold')
-axes[0, 1].grid(axis='y', alpha=0.3)
-
-# Internet Access vs Marks
-sns.boxplot(x='internet_access', y='marks', data=student_dataset, 
-            ax=axes[1, 0], palette='pastel')
-axes[1, 0].set_title('Internet Access vs Marks', fontweight='bold')
-axes[1, 0].set_xlabel('Internet Access (0=No, 1=Yes)')
-axes[1, 0].grid(axis='y', alpha=0.3)
-
-# Tutoring vs Marks
-sns.boxplot(x='tutoring', y='marks', data=student_dataset, 
-            ax=axes[1, 1], palette='muted')
-axes[1, 1].set_title('Tutoring vs Marks', fontweight='bold')
-axes[1, 1].set_xlabel('Tutoring (0=No, 1=Yes)')
-axes[1, 1].grid(axis='y', alpha=0.3)
-
-plt.tight_layout()
-plt.savefig('04_categorical_features.png', dpi=300, bbox_inches='tight')
-plt.close()
-print("✓ Saved: 04_categorical_features.png")
-print("\n✓ EDA completed successfully\n")
-
-# 4. Data Cleaning (Outlier Removal using IQR)
-
-print("="*60)
-print("DATA CLEANING")
-print("="*60)
-
-# Calculate IQR for study_hours
-first_quartile = student_dataset['study_hours'].quantile(0.25)
-third_quartile = student_dataset['study_hours'].quantile(0.75)
-inter_quartile_range = third_quartile - first_quartile
-
-# Remove outliers using IQR method
-student_dataset = student_dataset[
-    (student_dataset['study_hours'] >= first_quartile - 1.5 * inter_quartile_range) &
-    (student_dataset['study_hours'] <= third_quartile + 1.5 * inter_quartile_range)
-]
-
-print("\nData cleaned successfully")
-print(f"Dataset shape after cleaning: {student_dataset.shape}\n")
-
-# 5. Feature and Target Separation
-
-# Input features (all except targets)
-student_input_features = student_dataset.drop(columns=['marks', 'pass_fail'])
-
-# Regression target
-student_marks_target = student_dataset['marks']
-
-# Classification target
-student_pass_fail_target = student_dataset['pass_fail']
-
-# 6. Feature Scaling
-
-# Initialize scaler
-feature_scaler = StandardScaler()
-
-# Fit and transform features
-scaled_student_features = feature_scaler.fit_transform(student_input_features)
-
-print("Data cleaned and scaled successfully\n")
-
-# 7. Feature Selection
-
-# Selected important features based on domain knowledge
-important_features = [
-    'study_hours',
-    'attendance',
-    'previous_scores',
-    'sleep_hours',
-    'extracurricular',
-    'family_support',
-    'tutoring'
-]
-
-# Extract selected features from dataset
-selected_student_features = student_dataset[important_features]
-
-# Scale selected features
-scaled_selected_features = feature_scaler.fit_transform(selected_student_features)
-
-print("Selected features:")
-print(important_features)
-print()
-
-# 8. Linear Regression – Marks Prediction
-
-print("="*60)
-print("MODEL TRAINING")
-print("="*60)
-
-# Train-test split for regression (80-20 split)
-train_features_regression, test_features_regression, train_marks, test_marks = train_test_split(
-    scaled_selected_features,
-    student_marks_target,
-    test_size=0.2,
-    random_state=42
-)
-
-# Initialize and train Linear Regression model
-marks_prediction_model = LinearRegression()
-marks_prediction_model.fit(train_features_regression, train_marks)
-
-print(f"\nLinear Regression model trained")
-print(f"Training samples: {len(train_features_regression)}, Testing samples: {len(test_features_regression)}")
-
-# 9. Logistic Regression – Pass/Fail Prediction
-
-# Train-test split for classification (80-20 split)
-train_features_classification, test_features_classification, train_pass_fail, test_pass_fail = train_test_split(
-    scaled_selected_features,
-    student_pass_fail_target,
-    test_size=0.2,
-    random_state=42
-)
-
-# Initialize and train Logistic Regression model
-pass_fail_prediction_model = LogisticRegression(max_iter=1000)
-pass_fail_prediction_model.fit(train_features_classification, train_pass_fail)
-
-print(f"Logistic Regression model trained")
-print(f"Training samples: {len(train_features_classification)}, Testing samples: {len(test_features_classification)}\n")
-
-# 10. Model Evaluation
-
-print("="*60)
-print("MODEL EVALUATION")
-print("="*60)
-
-# --- Linear Regression Evaluation ---
-
-# Make predictions on test set
-predicted_marks_test = marks_prediction_model.predict(test_features_regression)
-
-# Calculate evaluation metrics
-mean_squared_error_value = mean_squared_error(test_marks, predicted_marks_test)
-root_mean_squared_error = np.sqrt(mean_squared_error_value)
-r2_score_value = r2_score(test_marks, predicted_marks_test)
+for col in categorical_cols:
+    le = LabelEncoder()
+    df_encoded[col] = le.fit_transform(df_encoded[col])
+    label_encoders[col] = le
+    print(f"✓ Encoded '{col}'")
 
 # Display results
-print("\nLinear Regression Evaluation:")
-print(f"R² Score: {r2_score_value:.4f}")
-print(f"RMSE: {root_mean_squared_error:.4f}")
-
-# --- Logistic Regression Evaluation ---
-
-# Make predictions on test set
-predicted_pass_fail_test = pass_fail_prediction_model.predict(test_features_classification)
-
-# Calculate accuracy
-classification_accuracy = accuracy_score(test_pass_fail, predicted_pass_fail_test)
-
-# Display results
-print("\nLogistic Regression Evaluation:")
-print(f"Accuracy: {classification_accuracy:.4f}\n")
-
-# 11. Visualization - Model Performance
-
-print("="*60)
-print("MODEL VISUALIZATION")
-print("="*60)
-
-# --- Linear Regression: Actual vs Predicted & Residual Plot ---
-fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-# Actual vs Predicted scatter plot
-axes[0].scatter(test_marks, predicted_marks_test, alpha=0.6, color='#3498db', 
-                s=50, edgecolor='black', linewidth=0.5)
-axes[0].plot([test_marks.min(), test_marks.max()], 
-             [test_marks.min(), test_marks.max()], 
-             'r--', lw=2, label='Perfect Prediction')
-axes[0].set_xlabel('Actual Marks', fontsize=12, fontweight='bold')
-axes[0].set_ylabel('Predicted Marks', fontsize=12, fontweight='bold')
-axes[0].set_title(f'Actual vs Predicted\nR² = {r2_score_value:.4f}', 
-                  fontweight='bold', fontsize=13)
-axes[0].legend(loc='upper left')
-axes[0].grid(True, alpha=0.3)
-
-# Residual plot
-residuals = test_marks - predicted_marks_test
-axes[1].scatter(predicted_marks_test, residuals, alpha=0.6, color='#e74c3c', 
-                s=50, edgecolor='black', linewidth=0.5)
-axes[1].axhline(y=0, color='black', linestyle='--', lw=2)
-axes[1].set_xlabel('Predicted Marks', fontsize=12, fontweight='bold')
-axes[1].set_ylabel('Residuals', fontsize=12, fontweight='bold')
-axes[1].set_title('Residual Plot', fontweight='bold', fontsize=13)
-axes[1].grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.savefig('05_regression_evaluation.png', dpi=300, bbox_inches='tight')
-plt.close()
-print("\n✓ Saved: 05_regression_evaluation.png")
-
-# --- Logistic Regression: Confusion Matrix ---
-cm = confusion_matrix(test_pass_fail, predicted_pass_fail_test)
-plt.figure(figsize=(7, 6))
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-            xticklabels=['Fail', 'Pass'], yticklabels=['Fail', 'Pass'],
-            cbar_kws={'label': 'Count'}, linewidths=2, linecolor='black',
-            annot_kws={'size': 16, 'weight': 'bold'})
-plt.xlabel('Predicted Label', fontsize=12, fontweight='bold')
-plt.ylabel('Actual Label', fontsize=12, fontweight='bold')
-plt.title(f'Confusion Matrix\nAccuracy: {classification_accuracy:.4f}', 
-          fontsize=14, fontweight='bold', pad=20)
-plt.tight_layout()
-plt.savefig('06_confusion_matrix.png', dpi=300, bbox_inches='tight')
-plt.close()
-print("✓ Saved: 06_confusion_matrix.png\n")
-
-# 12. Final Prediction (Sample Student Input)
-
-print("="*60)
-print("SAMPLE PREDICTION")
-print("="*60)
-
-# Sample student data
-# Format: [study_hours, attendance, previous_scores, sleep_hours, extracurricular, family_support, tutoring]
-new_student_data = np.array([[5, 85, 75, 7, 1, 1, 0]])
-
-print("\nNew Student Data:")
-for idx, feature in enumerate(important_features):
-    print(f"  {feature}: {new_student_data[0][idx]}")
-
-# Scale input using trained scaler
-scaled_new_student_data = feature_scaler.transform(new_student_data)
-
-# Predict marks using Linear Regression
-predicted_final_marks = marks_prediction_model.predict(scaled_new_student_data)[0]
-
-# Predict pass/fail using Logistic Regression
-predicted_pass_fail_status = pass_fail_prediction_model.predict(scaled_new_student_data)[0]
-
-# Get probability scores
-pass_fail_probability = pass_fail_prediction_model.predict_proba(scaled_new_student_data)[0]
-
-# Display prediction results
 print("\n" + "="*60)
-print("PREDICTION RESULTS")
+print("ORIGINAL DATA (Before Encoding)")
 print("="*60)
-print(f"Predicted Marks: {round(predicted_final_marks, 2)}")
-print(f"Prediction: {'Pass' if predicted_pass_fail_status == 1 else 'Fail'}")
-print(f"Pass Probability: {pass_fail_probability[1]*100:.2f}%")
-print(f"Fail Probability: {pass_fail_probability[0]*100:.2f}%\n")
+print(df_original.head())
 
-# 13. Save Models
+print("\n" + "="*60)
+print("ENCODED DATA (After Encoding)")
+print("="*60)
+print(df_encoded.head())
+
+print("\n" + "="*60)
+print("✅ DATA PREPROCESSING COMPLETE")
+print("="*60)
+# Correlation heatmap
+plt.figure(figsize=(12, 8))
+sns.heatmap(df.corr(), annot=True, cmap='coolwarm', fmt='.2f')
+plt.title('Correlation Matrix')
+plt.tight_layout()
+plt.savefig('correlation_heatmap.png')
+plt.show()
+
+# Score distributions
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+df_original['math score'].hist(bins=20, ax=axes[0], color='blue', alpha=0.7)
+axes[0].set_title('Math Score Distribution')
+df_original['reading score'].hist(bins=20, ax=axes[1], color='green', alpha=0.7)
+axes[1].set_title('Reading Score Distribution')
+df_original['writing score'].hist(bins=20, ax=axes[2], color='red', alpha=0.7)
+axes[2].set_title('Writing Score Distribution')
+plt.tight_layout()
+plt.savefig('score_distributions.png')
+plt.show()
+
+# Boxplot for outlier detection
+plt.figure(figsize=(10, 6))
+df_original[['math score', 'reading score', 'writing score']].boxplot()
+plt.title('Boxplot for Score Outliers')
+plt.savefig('outlier_boxplot.png')
+plt.show()
+# Define features and target
+X = df[['gender', 'race/ethnicity', 'parental level of education', 
+        'lunch', 'test preparation course', 'reading score', 'writing score']]
+y = df['math score']  # Predicting math score
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Feature scaling
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+print(f"Training set: {X_train.shape}")
+print(f"Test set: {X_test.shape}")
+# Dictionary to store models
+models = {
+    'Linear Regression': LinearRegression(),
+    'Ridge Regression': Ridge(alpha=1.0),
+    'Decision Tree': DecisionTreeRegressor(random_state=42),
+    'Random Forest': RandomForestRegressor(n_estimators=100, random_state=42),
+    'Gradient Boosting': GradientBoostingRegressor(n_estimators=100, random_state=42)
+}
+
+# Train and evaluate models
+results = {}
+trained_models = {}  # Store trained models
+
+for name, model in models.items():
+    model.fit(X_train_scaled, y_train)
+    y_pred = model.predict(X_test_scaled)
+    
+    mse = mean_squared_error(y_test, y_pred)
+    rmse = np.sqrt(mse)
+    mae = mean_absolute_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+    
+    results[name] = {'RMSE': rmse, 'MAE': mae, 'R2 Score': r2}
+    trained_models[name] = model  # Save the trained model
+    
+    print(f"\n{name} Results:")
+    print(f"RMSE: {rmse:.2f}")
+    print(f"MAE: {mae:.2f}")
+    print(f"R2 Score: {r2:.4f}")
+# Create comparison dataframe
+results_df = pd.DataFrame(results).T
+print("\nModel Comparison:")
+print(results_df)
+
+# Visualization of model comparison
+fig, ax = plt.subplots(1, 3, figsize=(18, 5))
+
+results_df['R2 Score'].plot(kind='bar', ax=ax[0], color='skyblue')
+ax[0].set_title('R2 Score Comparison')
+ax[0].set_ylabel('R2 Score')
+ax[0].set_xticklabels(results_df.index, rotation=45, ha='right')
+
+results_df['RMSE'].plot(kind='bar', ax=ax[1], color='salmon')
+ax[1].set_title('RMSE Comparison')
+ax[1].set_ylabel('RMSE')
+ax[1].set_xticklabels(results_df.index, rotation=45, ha='right')
+
+results_df['MAE'].plot(kind='bar', ax=ax[2], color='lightgreen')
+ax[2].set_title('MAE Comparison')
+ax[2].set_ylabel('MAE')
+ax[2].set_xticklabels(results_df.index, rotation=45, ha='right')
+
+plt.tight_layout()
+plt.savefig('model_comparison.png')
+plt.show()
+
+# Select best model
+best_model_name = results_df['R2 Score'].idxmax()
+best_model = trained_models[best_model_name]  # Get the actual trained model
+print(f"\nBest Model: {best_model_name} with R2 Score: {results_df.loc[best_model_name, 'R2 Score']:.4f}")
+
+# Function to predict student performance
+def predict_performance(gender, race, parent_edu, lunch, test_prep, reading, writing):
+    input_data = np.array([[gender, race, parent_edu, lunch, test_prep, reading, writing]])
+    input_scaled = scaler.transform(input_data)
+    prediction = best_model.predict(input_scaled)
+    return prediction[0]
+
+# Example prediction
+sample_prediction = predict_performance(1, 2, 3, 0, 1, 75, 78)
+print(f"\nPredicted Math Score: {sample_prediction:.2f}")
 
 import pickle
 
-print("="*60)
-print("SAVING MODELS")
-print("="*60)
+# Save best model and scaler
+with open('best_model.pkl', 'wb') as f:
+    pickle.dump(best_model, f)
 
-# Save Linear Regression model
-with open('linear_regression_model.pkl', 'wb') as f:
-    pickle.dump(marks_prediction_model, f)
-print("\n✓ Linear Regression model saved: linear_regression_model.pkl")
-
-# Save Logistic Regression model
-with open('logistic_regression_model.pkl', 'wb') as f:
-    pickle.dump(pass_fail_prediction_model, f)
-print("✓ Logistic Regression model saved: logistic_regression_model.pkl")
-
-# Save scaler
 with open('scaler.pkl', 'wb') as f:
-    pickle.dump(feature_scaler, f)
-print("✓ Scaler saved: scaler.pkl")
+    pickle.dump(scaler, f)
 
-print("\n✓ All models saved successfully!\n")
+print("Models saved successfully!")
+print("✓ best_model.pkl")
+print("✓ scaler.pkl")
+!pip install ipywidgets -q
 
-# Final Summary
-print("="*60)
-print("PROJECT SUMMARY")
-print("="*60)
+import pickle
+import numpy as np
+import ipywidgets as widgets
+from IPython.display import display, HTML, clear_output
 
-print(f"\nDataset: {student_dataset.shape[0]} samples, {len(important_features)} features")
-print(f"\nModel Performance:")
-print(f"  • Linear Regression - R² Score: {r2_score_value:.4f}, RMSE: {root_mean_squared_error:.4f}")
-print(f"  • Logistic Regression - Accuracy: {classification_accuracy:.4f}")
-print(f"\nGenerated Files:")
-print("  Visualizations: 6 PNG files")
-print("  Models: 3 PKL files")
-print("\n" + "="*60)
-print("✅ PROJECT COMPLETED SUCCESSFULLY!")
-print("="*60)
+# Load models
+model = pickle.load(open('best_model.pkl', 'rb'))
+scaler = pickle.load(open('scaler.pkl', 'rb'))
+
+print("✓ Models loaded successfully!\n")
+
+# Create interactive widgets
+display(HTML("""
+<div style='background-color: #2ecc71; padding: 20px; border-radius: 10px; text-align: center;'>
+    <h1 style='color: white; margin: 0;'>🎓 Student Performance Prediction System</h1>
+    <p style='color: white; margin: 5px 0 0 0;'>Predict math scores based on student factors</p>
+</div>
+<br>
+"""))
+
+gender = widgets.Dropdown(
+    options=['Female', 'Male'],
+    value='Male',
+    description='Gender:',
+    style={'description_width': '150px'},
+    layout=widgets.Layout(width='400px')
+)
+
+race = widgets.Dropdown(
+    options=['Group A', 'Group B', 'Group C', 'Group D', 'Group E'],
+    value='Group B',
+    description='Race/Ethnicity:',
+    style={'description_width': '150px'},
+    layout=widgets.Layout(width='400px')
+)
+
+parent_edu = widgets.Dropdown(
+    options=['Some High School', 'High School', 'Some College',
+             "Associate's Degree", "Bachelor's Degree", "Master's Degree"],
+    value="Bachelor's Degree",
+    description='Parent Education:',
+    style={'description_width': '150px'},
+    layout=widgets.Layout(width='400px')
+)
+
+lunch = widgets.Dropdown(
+    options=['Standard', 'Free/Reduced'],
+    value='Standard',
+    description='Lunch Type:',
+    style={'description_width': '150px'},
+    layout=widgets.Layout(width='400px')
+)
+
+test_prep = widgets.Dropdown(
+    options=['None', 'Completed'],
+    value='None',
+    description='Test Prep:',
+    style={'description_width': '150px'},
+    layout=widgets.Layout(width='400px')
+)
+
+reading_score = widgets.IntSlider(
+    value=68,
+    min=0,
+    max=100,
+    step=1,
+    description='Reading Score:',
+    style={'description_width': '150px'},
+    layout=widgets.Layout(width='500px'),
+    continuous_update=False
+)
+
+writing_score = widgets.IntSlider(
+    value=81,
+    min=0,
+    max=100,
+    step=1,
+    description='Writing Score:',
+    style={'description_width': '150px'},
+    layout=widgets.Layout(width='500px'),
+    continuous_update=False
+)
+
+button = widgets.Button(
+    description='🎯 Predict Math Score',
+    button_style='success',
+    layout=widgets.Layout(width='250px', height='50px')
+)
+
+output = widgets.Output()
+
+def predict_score(b):
+    with output:
+        clear_output()
+        
+        # Encode inputs
+        gender_enc = 1 if gender.value == 'Male' else 0
+        race_enc = ord(race.value[-1]) - ord('A')
+        parent_edu_mapping = {
+            'Some High School': 0,
+            'High School': 1,
+            'Some College': 2,
+            "Associate's Degree": 3,
+            "Bachelor's Degree": 4,
+            "Master's Degree": 5
+        }
+        parent_edu_enc = parent_edu_mapping.get(parent_edu.value, 2)
+        lunch_enc = 0 if lunch.value == 'Standard' else 1
+        test_prep_enc = 1 if test_prep.value == 'Completed' else 0
+        
+        # Make prediction
+        input_data = np.array([[gender_enc, race_enc, parent_edu_enc, lunch_enc,
+                               test_prep_enc, reading_score.value, writing_score.value]])
+        input_scaled = scaler.transform(input_data)
+        prediction = model.predict(input_scaled)[0]
+        
+        # Display results with styling
+        if prediction >= 80:
+            color = '#2ecc71'
+            emoji = '🌟'
+            message = 'Excellent Performance!'
+        elif prediction >= 60:
+            color = '#3498db'
+            emoji = '👍'
+            message = 'Good Performance!'
+        else:
+            color = '#e74c3c'
+            emoji = '📚'
+            message = 'Needs Improvement'
+        
+        display(HTML(f"""
+        <div style='background-color: {color}; padding: 30px; border-radius: 10px; text-align: center; margin-top: 20px;'>
+            <h2 style='color: white; margin: 0;'>📊 Prediction Result</h2>
+            <h1 style='color: white; font-size: 48px; margin: 10px 0;'>{prediction:.2f}/100</h1>
+            <h3 style='color: white; margin: 0;'>{emoji} {message}</h3>
+        </div>
+        """))
+
+button.on_click(predict_score)
+
+# Display all widgets
+display(gender)
+display(race)
+display(parent_edu)
+display(lunch)
+display(test_prep)
+display(reading_score)
+display(writing_score)
+display(HTML("<br>"))
+display(button)
+display(output)
