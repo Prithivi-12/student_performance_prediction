@@ -1,3 +1,7 @@
+# ==========================================
+# SECTION 1: IMPORT AND CSV UPLOAD
+# ==========================================
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,11 +15,33 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import warnings
 warnings.filterwarnings('ignore')
 
-df = pd.read_csv('StudentsPerformance.csv')
+# Load data from GitHub
+url = 'https://raw.githubusercontent.com/Prithivi-12/student_performance_prediction/main/StudentsPerformance.csv'
+df = pd.read_csv(url)
+
+print("✓ Data loaded successfully!")
+print(f"Dataset shape: {df.shape}")
+print("\nFirst 5 rows:")
 print(df.head())
-print(df.info())
-print(df.describe())
+
+
+# ==========================================
+# SECTION 2: DATA PREPROCESSING
+# ==========================================
+
+# Display basic information
 print("="*60)
+print("DATASET INFORMATION")
+print("="*60)
+print(df.info())
+
+print("\n" + "="*60)
+print("STATISTICAL SUMMARY")
+print("="*60)
+print(df.describe())
+
+# Check for missing values
+print("\n" + "="*60)
 print("MISSING VALUES CHECK")
 print("="*60)
 print(df.isnull().sum())
@@ -29,14 +55,12 @@ print(f"Duplicates found: {duplicates}")
 if duplicates > 0:
     df = df.drop_duplicates()
     print(f"✓ Removed {duplicates} duplicate rows")
-
-# Feature Engineering - Create average score column
-df['average_score'] = (df['math score'] + df['reading score'] + df['writing score']) / 3
-print("\n✓ Created 'average_score' feature")
+else:
+    print("✓ No duplicates found")
 
 # Store original data before encoding
 df_original = df.copy()
-print("✓ Saved original data as 'df_original'")
+print("\n✓ Saved original data as 'df_original'")
 
 # Create encoded dataframe
 df_encoded = df.copy()
@@ -57,7 +81,7 @@ for col in categorical_cols:
     label_encoders[col] = le
     print(f"✓ Encoded '{col}'")
 
-# Display results
+# Display comparison
 print("\n" + "="*60)
 print("ORIGINAL DATA (Before Encoding)")
 print("="*60)
@@ -71,48 +95,106 @@ print(df_encoded.head())
 print("\n" + "="*60)
 print("✅ DATA PREPROCESSING COMPLETE")
 print("="*60)
+
+
+# ==========================================
+# SECTION 3: EXPLORATORY DATA ANALYSIS (EDA)
+# ==========================================
+
 # Correlation heatmap
 plt.figure(figsize=(12, 8))
-sns.heatmap(df.corr(), annot=True, cmap='coolwarm', fmt='.2f')
+sns.heatmap(df_encoded.corr(), annot=True, cmap='coolwarm', fmt='.2f')
 plt.title('Correlation Matrix')
 plt.tight_layout()
 plt.savefig('correlation_heatmap.png')
 plt.show()
+print("✓ Correlation heatmap saved as 'correlation_heatmap.png'")
 
 # Score distributions
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 df_original['math score'].hist(bins=20, ax=axes[0], color='blue', alpha=0.7)
 axes[0].set_title('Math Score Distribution')
+axes[0].set_xlabel('Math Score')
+axes[0].set_ylabel('Frequency')
+
 df_original['reading score'].hist(bins=20, ax=axes[1], color='green', alpha=0.7)
 axes[1].set_title('Reading Score Distribution')
+axes[1].set_xlabel('Reading Score')
+axes[1].set_ylabel('Frequency')
+
 df_original['writing score'].hist(bins=20, ax=axes[2], color='red', alpha=0.7)
 axes[2].set_title('Writing Score Distribution')
+axes[2].set_xlabel('Writing Score')
+axes[2].set_ylabel('Frequency')
+
 plt.tight_layout()
 plt.savefig('score_distributions.png')
 plt.show()
+print("✓ Score distributions saved as 'score_distributions.png'")
 
 # Boxplot for outlier detection
 plt.figure(figsize=(10, 6))
 df_original[['math score', 'reading score', 'writing score']].boxplot()
 plt.title('Boxplot for Score Outliers')
+plt.ylabel('Scores')
 plt.savefig('outlier_boxplot.png')
 plt.show()
-# Define features and target
-X = df[['gender', 'race/ethnicity', 'parental level of education', 
-        'lunch', 'test preparation course', 'reading score', 'writing score']]
-y = df['math score']  # Predicting math score
+print("✓ Boxplot saved as 'outlier_boxplot.png'")
 
-# Split data
+print("\n" + "="*60)
+print("✅ EXPLORATORY DATA ANALYSIS COMPLETE")
+print("="*60)
+
+
+# ==========================================
+# SECTION 4: FEATURE ENGINEERING & SELECTION
+# ==========================================
+
+# Create average score feature
+df_original['average_score'] = (df_original['math score'] + 
+                                  df_original['reading score'] + 
+                                  df_original['writing score']) / 3
+df_encoded['average_score'] = df_original['average_score']
+print("✓ Created 'average_score' feature")
+
+# Define features (X) and target (y)
+X = df_encoded[['gender', 'race/ethnicity', 'parental level of education', 
+                'lunch', 'test preparation course', 'reading score', 'writing score']]
+y = df_encoded['math score']
+
+print("\n" + "="*60)
+print("FEATURE SELECTION")
+print("="*60)
+print(f"Features (X): {X.shape}")
+print(f"Target (y): {y.shape}")
+print(f"\nSelected Features: {list(X.columns)}")
+print(f"Target Variable: math score")
+
+print("\n" + "="*60)
+print("✅ FEATURE ENGINEERING & SELECTION COMPLETE")
+print("="*60)
+
+
+# ==========================================
+# SECTION 5: MODEL BUILDING
+# ==========================================
+
+# Split data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+print("="*60)
+print("DATA SPLITTING")
+print("="*60)
+print(f"Training set: {X_train.shape}")
+print(f"Test set: {X_test.shape}")
 
 # Feature scaling
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
+print("\n✓ Feature scaling applied")
 
-print(f"Training set: {X_train.shape}")
-print(f"Test set: {X_test.shape}")
-# Dictionary to store models
+# Initialize models
 models = {
     'Linear Regression': LinearRegression(),
     'Ridge Regression': Ridge(alpha=1.0),
@@ -121,12 +203,35 @@ models = {
     'Gradient Boosting': GradientBoostingRegressor(n_estimators=100, random_state=42)
 }
 
-# Train and evaluate models
-results = {}
-trained_models = {}  # Store trained models
+print("\n" + "="*60)
+print("MODEL TRAINING")
+print("="*60)
+
+# Train all models
+trained_models = {}
 
 for name, model in models.items():
+    print(f"\nTraining {name}...")
     model.fit(X_train_scaled, y_train)
+    trained_models[name] = model
+    print(f"✓ {name} trained successfully")
+
+print("\n" + "="*60)
+print("✅ MODEL BUILDING COMPLETE")
+print("="*60)
+
+
+# ==========================================
+# SECTION 6: MODEL EVALUATION & COMPARISON
+# ==========================================
+
+print("="*60)
+print("MODEL EVALUATION")
+print("="*60)
+
+results = {}
+
+for name, model in trained_models.items():
     y_pred = model.predict(X_test_scaled)
     
     mse = mean_squared_error(y_test, y_pred)
@@ -135,15 +240,18 @@ for name, model in models.items():
     r2 = r2_score(y_test, y_pred)
     
     results[name] = {'RMSE': rmse, 'MAE': mae, 'R2 Score': r2}
-    trained_models[name] = model  # Save the trained model
     
-    print(f"\n{name} Results:")
-    print(f"RMSE: {rmse:.2f}")
-    print(f"MAE: {mae:.2f}")
-    print(f"R2 Score: {r2:.4f}")
+    print(f"\n{name}:")
+    print(f"  RMSE: {rmse:.2f}")
+    print(f"  MAE: {mae:.2f}")
+    print(f"  R2 Score: {r2:.4f}")
+
 # Create comparison dataframe
 results_df = pd.DataFrame(results).T
-print("\nModel Comparison:")
+
+print("\n" + "="*60)
+print("MODEL COMPARISON TABLE")
+print("="*60)
 print(results_df)
 
 # Visualization of model comparison
@@ -167,35 +275,121 @@ ax[2].set_xticklabels(results_df.index, rotation=45, ha='right')
 plt.tight_layout()
 plt.savefig('model_comparison.png')
 plt.show()
+print("\n✓ Model comparison chart saved as 'model_comparison.png'")
 
 # Select best model
 best_model_name = results_df['R2 Score'].idxmax()
-best_model = trained_models[best_model_name]  # Get the actual trained model
-print(f"\nBest Model: {best_model_name} with R2 Score: {results_df.loc[best_model_name, 'R2 Score']:.4f}")
+best_model = trained_models[best_model_name]
 
-# Function to predict student performance
+print("\n" + "="*60)
+print("BEST MODEL SELECTION")
+print("="*60)
+print(f"🏆 Best Model: {best_model_name}")
+print(f"   R2 Score: {results_df.loc[best_model_name, 'R2 Score']:.4f}")
+print(f"   RMSE: {results_df.loc[best_model_name, 'RMSE']:.2f}")
+print(f"   MAE: {results_df.loc[best_model_name, 'MAE']:.2f}")
+
+print("\n" + "="*60)
+print("✅ MODEL EVALUATION & COMPARISON COMPLETE")
+print("="*60)
+
+
+# ==========================================
+# SECTION 7: PREDICTION FUNCTION
+# ==========================================
+
 def predict_performance(gender, race, parent_edu, lunch, test_prep, reading, writing):
+    """
+    Predict math score based on student characteristics and other scores.
+    
+    Parameters:
+    - gender: 0 (Female) or 1 (Male)
+    - race: 0-4 (Group A-E)
+    - parent_edu: 0-5 (Some High School to Master's Degree)
+    - lunch: 0 (Standard) or 1 (Free/Reduced)
+    - test_prep: 0 (None) or 1 (Completed)
+    - reading: Reading score (0-100)
+    - writing: Writing score (0-100)
+    
+    Returns:
+    - Predicted math score
+    """
     input_data = np.array([[gender, race, parent_edu, lunch, test_prep, reading, writing]])
     input_scaled = scaler.transform(input_data)
     prediction = best_model.predict(input_scaled)
     return prediction[0]
 
-# Example prediction
-sample_prediction = predict_performance(1, 2, 3, 0, 1, 75, 78)
-print(f"\nPredicted Math Score: {sample_prediction:.2f}")
+# Example predictions
+print("="*60)
+print("PREDICTION EXAMPLES")
+print("="*60)
+
+# Example 1
+sample1 = predict_performance(1, 2, 3, 0, 1, 75, 78)
+print(f"\nExample 1:")
+print(f"  Gender: Male, Race: Group C, Parent Edu: Associate's")
+print(f"  Lunch: Standard, Test Prep: Completed")
+print(f"  Reading: 75, Writing: 78")
+print(f"  Predicted Math Score: {sample1:.2f}")
+
+# Example 2
+sample2 = predict_performance(0, 4, 5, 0, 1, 90, 88)
+print(f"\nExample 2:")
+print(f"  Gender: Female, Race: Group E, Parent Edu: Master's")
+print(f"  Lunch: Standard, Test Prep: Completed")
+print(f"  Reading: 90, Writing: 88")
+print(f"  Predicted Math Score: {sample2:.2f}")
+
+# Example 3
+sample3 = predict_performance(1, 0, 1, 1, 0, 55, 52)
+print(f"\nExample 3:")
+print(f"  Gender: Male, Race: Group A, Parent Edu: High School")
+print(f"  Lunch: Free/Reduced, Test Prep: None")
+print(f"  Reading: 55, Writing: 52")
+print(f"  Predicted Math Score: {sample3:.2f}")
+
+print("\n" + "="*60)
+print("✅ PREDICTION FUNCTION READY")
+print("="*60)
+
+
+# ==========================================
+# SECTION 8: SAVE MODELS
+# ==========================================
 
 import pickle
 
-# Save best model and scaler
+print("="*60)
+print("SAVING MODELS")
+print("="*60)
+
+# Save best model
 with open('best_model.pkl', 'wb') as f:
     pickle.dump(best_model, f)
+print("✓ best_model.pkl saved")
 
+# Save scaler
 with open('scaler.pkl', 'wb') as f:
     pickle.dump(scaler, f)
+print("✓ scaler.pkl saved")
 
-print("Models saved successfully!")
-print("✓ best_model.pkl")
-print("✓ scaler.pkl")
+# Save label encoders
+with open('label_encoders.pkl', 'wb') as f:
+    pickle.dump(label_encoders, f)
+print("✓ label_encoders.pkl saved")
+
+# Save model comparison results
+results_df.to_csv('model_comparison_results.csv')
+print("✓ model_comparison_results.csv saved")
+
+print("\n" + "="*60)
+print("✅ ALL MODELS SAVED SUCCESSFULLY")
+print("="*60)
+
+
+
+
+#STREAMLIT DEPLOYMENT CODE
 !pip install ipywidgets -q
 
 import pickle
@@ -292,7 +486,7 @@ output = widgets.Output()
 def predict_score(b):
     with output:
         clear_output()
-        
+
         # Encode inputs
         gender_enc = 1 if gender.value == 'Male' else 0
         race_enc = ord(race.value[-1]) - ord('A')
@@ -307,13 +501,13 @@ def predict_score(b):
         parent_edu_enc = parent_edu_mapping.get(parent_edu.value, 2)
         lunch_enc = 0 if lunch.value == 'Standard' else 1
         test_prep_enc = 1 if test_prep.value == 'Completed' else 0
-        
+
         # Make prediction
         input_data = np.array([[gender_enc, race_enc, parent_edu_enc, lunch_enc,
                                test_prep_enc, reading_score.value, writing_score.value]])
         input_scaled = scaler.transform(input_data)
         prediction = model.predict(input_scaled)[0]
-        
+
         # Display results with styling
         if prediction >= 80:
             color = '#2ecc71'
@@ -327,7 +521,7 @@ def predict_score(b):
             color = '#e74c3c'
             emoji = '📚'
             message = 'Needs Improvement'
-        
+
         display(HTML(f"""
         <div style='background-color: {color}; padding: 30px; border-radius: 10px; text-align: center; margin-top: 20px;'>
             <h2 style='color: white; margin: 0;'>📊 Prediction Result</h2>
